@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web → App · generador libre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1016;
+    --bg-raised:#141822;
+    --bg-input:#1a1f2b;
+    --line:#262c3a;
+    --text:#e7e9ee;
+    --text-dim:#8b93a7;
+    --text-faint:#565f74;
+    --amber:#f2b84b;
+    --amber-dim:#7a5f2c;
+    --green:#3fb950;
+    --red:#f85149;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk',sans-serif;
+    line-height:1.5;
+    padding:0 0 64px;
+  }
+  code, .mono, input, textarea, .log{
+    font-family:'JetBrains Mono',monospace;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:28px 18px 0;}
+
+  header{margin-bottom:28px;}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--amber);
+    margin:0 0 10px;
+  }
+  h1{
+    font-size:26px;
+    font-weight:700;
+    margin:0 0 8px;
+    letter-spacing:-.01em;
+  }
+  header p{
+    color:var(--text-dim);
+    font-size:14.5px;
+    margin:0;
+    max-width:52ch;
+  }
+
+  .card{
+    background:var(--bg-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--text-faint);
+    margin:0 0 16px;
+    font-weight:600;
+  }
+
+  label{
+    display:block;
+    font-size:13px;
+    color:var(--text-dim);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:480px){.row2{grid-template-columns:1fr;}}
+
+  input[type=text], input[type=password], input[type=url]{
+    width:100%;
+    background:var(--bg-input);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:14px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  input:focus{border-color:var(--amber);}
+  input::placeholder{color:var(--text-faint);}
+
+  .color-field{display:flex;align-items:center;gap:10px;background:var(--bg-input);border:1px solid var(--line);border-radius:8px;padding:6px 12px;}
+  .color-field input[type=color]{
+    width:32px;height:32px;border:none;background:none;padding:0;cursor:pointer;
+  }
+  .color-field span{font-size:13px;color:var(--text-dim);}
+
+  .check{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text-dim);}
+  .check input{accent-color:var(--amber);width:15px;height:15px;}
+
+  .icon-picker{display:flex;align-items:center;gap:14px;}
+  .icon-preview{
+    width:64px;height:64px;border-radius:16px;
+    background:var(--bg-input) center/cover no-repeat;
+    border:1px solid var(--line);
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text-faint);font-size:10px;text-align:center;
+    overflow:hidden;
+  }
+  .icon-picker-controls{flex:1;}
+  .file-btn{
+    display:inline-block;
+    background:var(--bg-input);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:8px;
+    padding:9px 14px;
+    font-size:13px;
+    cursor:pointer;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:500;
+  }
+  .file-btn:hover{border-color:var(--amber);}
+  input[type=file]{display:none;}
+  .file-name{font-size:12px;color:var(--text-faint);margin-top:6px;}
+
+  .hint{font-size:12px;color:var(--text-faint);margin-top:6px;}
+  .hint a{color:var(--amber);text-decoration:none;border-bottom:1px dotted var(--amber-dim);}
+
+  button.primary{
+    width:100%;
+    background:var(--amber);
+    color:#221800;
+    border:none;
+    border-radius:8px;
+    padding:14px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    transition:filter .15s, transform .1s;
+  }
+  button.primary:hover{filter:brightness(1.08);}
+  button.primary:active{transform:scale(.99);}
+  button.primary:disabled{opacity:.45;cursor:not-allowed;filter:none;}
+
+  /* commit graph / log */
+  .graph{
+    display:flex;
+    flex-direction:column;
+    gap:0;
+  }
+  .step{
+    display:flex;
+    gap:12px;
+    position:relative;
+    padding-bottom:18px;
+  }
+  .step:last-child{padding-bottom:0;}
+  .step .rail{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width:14px;
+    flex-shrink:0;
+  }
+  .step .dot{
+    width:11px;height:11px;border-radius:50%;
+    background:var(--bg-input);
+    border:2px solid var(--line);
+    margin-top:2px;
+    transition:all .2s;
+    flex-shrink:0;
+  }
+  .step .stem{
+    flex:1;
+    width:2px;
+    background:var(--line);
+    margin-top:2px;
+  }
+  .step.done .dot{background:var(--green);border-color:var(--green);}
+  .step.active .dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 3px rgba(242,184,75,.18);}
+  .step.error .dot{background:var(--red);border-color:var(--red);}
+  .step.done .stem{background:var(--green);}
+  .step .label{font-size:13.5px;color:var(--text-faint);padding-top:0;}
+  .step.done .label,.step.active .label{color:var(--text);}
+  .step.error .label{color:var(--red);}
+
+  .result{
+    background:var(--bg-input);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px;
+    margin-top:16px;
+    display:none;
+  }
+  .result.show{display:block;}
+  .result a{
+    display:block;
+    color:var(--amber);
+    font-size:13.5px;
+    text-decoration:none;
+    padding:6px 0;
+    border-bottom:1px dashed var(--line);
+  }
+  .result a:last-child{border-bottom:none;}
+  .result a:hover{text-decoration:underline;}
+
+  .download-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    width:100%;
+    background:var(--green);
+    color:#062b0e;
+    border:none;
+    border-radius:8px;
+    padding:14px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    text-decoration:none;
+    margin-bottom:12px;
+    cursor:pointer;
+  }
+  .download-btn:hover{filter:brightness(1.06);}
+
+  .waiting-note{
+    font-size:12.5px;
+    color:var(--text-faint);
+    margin-top:10px;
+    display:none;
+  }
+  .waiting-note.show{display:block;}
+
+  .error-box{
+    display:none;
+    background:rgba(248,81,73,.08);
+    border:1px solid rgba(248,81,73,.35);
+    color:#ffb3ae;
+    border-radius:8px;
+    padding:12px 14px;
+    font-size:13px;
+    margin-top:14px;
+    white-space:pre-wrap;
+  }
+  .error-box.show{display:block;}
+
+  footer{
+    max-width:640px;margin:24px auto 0;padding:0 18px;
+    font-size:12px;color:var(--text-faint);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">git push · sin costo</p>
+    <h1>Convierte tu web en app Android</h1>
+    <p>Envuelve tu sitio en una app nativa y compílala gratis con GitHub Actions en tu propia cuenta. Sin planes, sin marca de agua, sin backend intermedio: tu token habla directo con GitHub.</p>
+  </header>
+
+  <div class="card">
+    <h2>Tu cuenta de GitHub</h2>
+    <div class="field">
+      <label for="token">Token de acceso personal</label>
+      <input type="password" id="token" placeholder="ghp_••••••••••••••••••••">
+      <p class="hint">Necesita permiso <code>repo</code> y <code>workflow</code>. Se usa solo en tu navegador, nunca se guarda ni se envía a otro sitio que no sea api.github.com. <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">Crear uno nuevo ↗</a></p>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="repo">Nombre del repositorio</label>
+        <input type="text" id="repo" placeholder="mi-app-nativa">
+      </div>
+      <div class="field">
+        <label for="privacy">Visibilidad</label>
+        <div class="color-field" style="padding:9px 12px;">
+          <label class="check" style="margin:0;">
+            <input type="checkbox" id="private" checked>
+            <span>Repositorio privado</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Tu app</h2>
+    <div class="field">
+      <label for="url">URL de tu sitio web</label>
+      <input type="url" id="url" placeholder="https://tunegocio.com">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="name">Nombre de la app</label>
+        <input type="text" id="name" placeholder="Mi Negocio">
+      </div>
+      <div class="field">
+        <label for="appid">ID de paquete</label>
+        <input type="text" id="appid" placeholder="com.tunegocio.app">
+      </div>
+    </div>
+    <div class="field">
+      <label for="color">Color de marca (splash / barra de estado)</label>
+      <div class="color-field">
+        <input type="color" id="color" value="#0d1016">
+        <span id="colorHex">#0d1016</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="iconInput">Ícono de la app</label>
+      <div class="icon-picker">
+        <div class="icon-preview" id="iconPreview">sin<br>ícono</div>
+        <div class="icon-picker-controls">
+          <label class="file-btn" for="iconInput">Elegir foto…</label>
+          <input type="file" id="iconInput" accept="image/png, image/jpeg">
+          <p class="file-name" id="iconFileName">Ninguna imagen seleccionada — se usará el ícono genérico de Capacitor.</p>
+        </div>
+      </div>
+      <p class="hint">Ideal: PNG cuadrado, mínimo 1024×1024 px, sin bordes redondeados (el sistema los recorta solo). Se generan automáticamente todos los tamaños de ícono para Android durante la compilación.</p>
+    </div>
+  </div>
+
+  <button class="primary" id="go">Generar y subir a GitHub</button>
+
+  <div class="card" id="progressCard" style="display:none;">
+    <h2>Progreso</h2>
+    <div class="graph" id="graph"></div>
+    <p class="waiting-note" id="waitingNote">No cierres esta pestaña — la compilación corre en los servidores de GitHub y suele tardar entre 3 y 8 minutos.</p>
+    <div class="error-box" id="errorBox"></div>
+    <div class="result" id="result"></div>
+  </div>
+
+  <footer>
+    Esto crea un proyecto <strong>Capacitor</strong> en tu repositorio: tu app carga tu sitio dentro de un WebView nativo, igual que hacen las plataformas de pago. La compilación del APK corre en un runner de GitHub Actions (2.000 min/mes gratis en cuentas públicas, y también incluidos en repos privados personales). El APK queda listo para instalar en modo debug; para publicarlo en Play Store necesitarás firmarlo con tu propia clave. Si subes una foto como ícono, el workflow genera automáticamente todos los tamaños que Android necesita.
+  </footer>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+window.addEventListener('error', (e) => {
+  $('progressCard').style.display = 'block';
+  showError('Error inesperado: ' + (e.message || e));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  $('progressCard').style.display = 'block';
+  showError('Error inesperado: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+});
+
+$('color').addEventListener('input', e => $('colorHex').textContent = e.target.value);
+
+let iconBase64 = null; // raw base64 (no data: prefix), set when user picks a photo
+
+$('iconInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file){
+    iconBase64 = null;
+    $('iconPreview').style.backgroundImage = '';
+    $('iconPreview').textContent = 'sin ícono';
+    $('iconFileName').textContent = 'Ninguna imagen seleccionada — se usará el ícono genérico de Capacitor.';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result; // e.g. data:image/png;base64,AAAA...
+    iconBase64 = dataUrl.split(',')[1];
+    $('iconPreview').style.backgroundImage = `url(${dataUrl})`;
+    $('iconPreview').textContent = '';
+    $('iconFileName').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+});
+
+const STEPS = [
+  'Verificando token',
+  'Creando repositorio',
+  'Leyendo rama principal',
+  'Preparando archivos del proyecto',
+  'Subiendo archivos (blobs)',
+  'Creando árbol de commit',
+  'Creando commit',
+  'Actualizando rama',
+  'Activando compilación en GitHub Actions',
+  'Compilando APK en un servidor de GitHub',
+  'Descargando APK generado',
+];
+
+let stepEls = [];
+
+function buildGraph(){
+  const graph = $('graph');
+  graph.innerHTML = '';
+  stepEls = STEPS.map((label, i) => {
+    const step = document.createElement('div');
+    step.className = 'step';
+    step.innerHTML = `<div class="rail"><div class="dot"></div>${i < STEPS.length-1 ? '<div class="stem"></div>' : ''}</div><div class="label">${label}</div>`;
+    graph.appendChild(step);
+    return step;
+  });
+}
+
+function setStep(i, state){
+  if(!stepEls[i]) return;
+  stepEls[i].classList.remove('active','done','error');
+  stepEls[i].classList.add(state);
+}
+
+function setStepText(i, text){
+  if(!stepEls[i]) return;
+  const label = stepEls[i].querySelector('.label');
+  if(label) label.textContent = text;
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function waitForRun(token, owner, repo, headSha, timeoutMs = 90000, intervalMs = 4000){
+  const start = Date.now();
+  while(Date.now() - start < timeoutMs){
+    const res = await gh(token, 'GET', `/repos/${owner}/${repo}/actions/runs?per_page=10`);
+    if(res.ok){
+      const run = (res.data.workflow_runs || []).find(r => r.head_sha === headSha);
+      if(run) return run;
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error('No se detectó el inicio de la compilación. Puedes revisarla manualmente en la pestaña Actions del repositorio.');
+}
+
+async function waitForCompletion(token, owner, repo, runId, onTick, timeoutMs = 20 * 60000, intervalMs = 8000){
+  const start = Date.now();
+  while(Date.now() - start < timeoutMs){
+    const res = await gh(token, 'GET', `/repos/${owner}/${repo}/actions/runs/${runId}`);
+    if(res.ok){
+      if(onTick) onTick(res.data, Date.now() - start);
+      if(res.data.status === 'completed') return res.data;
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error('La compilación está tardando más de lo esperado. Puedes seguirla manualmente en la pestaña Actions.');
+}
+
+async function fetchArtifactZip(token, url){
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+    }
+  });
+  if(!res.ok) throw new Error(`No se pudo descargar el artefacto compilado (HTTP ${res.status}).`);
+  return await res.arrayBuffer();
+}
+
+async function extractApk(zipArrayBuffer){
+  const zip = await JSZip.loadAsync(zipArrayBuffer);
+  let apkEntry = null;
+  zip.forEach((relPath, file) => {
+    if(!apkEntry && relPath.toLowerCase().endsWith('.apk')) apkEntry = file;
+  });
+  if(!apkEntry) throw new Error('El artefacto descargado no contiene un archivo .apk.');
+  return await apkEntry.async('blob');
+}
+
+function showError(msg){
+  const box = $('errorBox');
+  box.textContent = msg;
+  box.classList.add('show');
+}
+
+async function gh(token, method, path, body){
+  const res = await fetch(`https://api.github.com${path}`, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch(e) {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+function b64(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function fileContents({ appId, appName, url, color, repoName }){
+  const capacitorConfig = {
+    appId,
+    appName,
+    webDir: 'www',
+    server: { url, cleartext: true },
+    backgroundColor: color,
+    android: { backgroundColor: color }
+  };
+
+  const packageJson = {
+    name: repoName,
+    version: '1.0.0',
+    private: true,
+    scripts: { build: 'echo \"sitio remoto, nada que compilar\"' },
+    dependencies: {
+      '@capacitor/core': '^6.1.2',
+      '@capacitor/android': '^6.1.2'
+    },
+    devDependencies: {
+      '@capacitor/cli': '^6.1.2',
+      '@capacitor/assets': '^3.0.5'
+    }
+  };
+
+  const indexHtml = `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>${appName}</title>
+<style>html,body{height:100%;margin:0;background:${color};display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#fff;}</style>
+</head>
+<body><p>Cargando ${appName}…</p></body>
+</html>`;
+
+  const workflow = `name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Agregar plataforma Android
+        run: npx cap add android
+
+      - name: Generar ícono de la app
+        run: |
+          if [ -f resources/icon.png ]; then
+            npx @capacitor/assets generate --android --iconBackgroundColor "${color}" --iconBackgroundColorDark "${color}" --splashBackgroundColor "${color}" --splashBackgroundColorDark "${color}"
+          else
+            echo "No se subió un ícono personalizado — se usa el ícono genérico de Capacitor."
+          fi
+
+      - name: Sincronizar Capacitor
+        run: npx cap sync android
+
+      - name: Permisos de gradlew
+        run: chmod +x android/gradlew
+
+      - name: Compilar APK (debug)
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Subir APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+`;
+
+  const readme = `# ${appName}
+
+App nativa Android generada a partir de [${url}](${url}) usando [Capacitor](https://capacitorjs.com).
+
+## Cómo obtener el APK
+
+1. Ve a la pestaña **Actions** de este repositorio.
+2. Abre la ejecución más reciente de "Build Android APK" (se dispara sola con cada push).
+3. Cuando termine, descarga el artefacto **app-debug-apk** y desempaqueta el \`.apk\`.
+
+Este APK está firmado en modo debug: sirve para instalar y probar en un dispositivo o emulador, pero **no** para publicar en Play Store. Para eso necesitas generar tu propio keystore de firma y actualizar el workflow con un paso \`assembleRelease\`.
+
+## Actualizar la app
+
+- Cambiar el sitio que carga: edita \`server.url\` en \`capacitor.config.json\`.
+- Cambiar el color de splash / barra de estado: edita \`backgroundColor\`.
+- Cambiar el ícono: reemplaza \`resources/icon.png\` (cuadrado, 1024×1024 px o más) y vuelve a hacer push. El workflow regenera todos los tamaños automáticamente.
+- Cualquier cambio en tu sitio web en vivo se refleja solo, ya que la app carga la URL en tiempo real — no hace falta recompilar salvo que cambies configuración nativa.
+
+Generado con un panel libre y de código abierto, sin cuotas ni marca de agua.
+`;
+
+  return {
+    'capacitor.config.json': JSON.stringify(capacitorConfig, null, 2),
+    'package.json': JSON.stringify(packageJson, null, 2),
+    'www/index.html': indexHtml,
+    '.github/workflows/build-android.yml': workflow,
+    'README.md': readme,
+  };
+}
+
+$('go').addEventListener('click', async () => {
+  const token = $('token').value.trim();
+  const repoName = $('repo').value.trim();
+  const isPrivate = $('private').checked;
+  const url = $('url').value.trim();
+  const appName = $('name').value.trim();
+  const appId = $('appid').value.trim();
+  const color = $('color').value;
+
+  $('errorBox').classList.remove('show');
+  $('result').classList.remove('show');
+  $('progressCard').style.display = 'block';
+
+  if(!token || !repoName || !url || !appName || !appId){
+    showError('Completa todos los campos antes de continuar.');
+    return;
+  }
+  if(!/^[a-z0-9]+(\.[a-z0-9]+)+$/i.test(appId)){
+    showError('El ID de paquete debe tener formato de dominio invertido, por ejemplo: com.tunegocio.app');
+    return;
+  }
+
+  buildGraph();
+  $('go').disabled = true;
+  $('go').textContent = 'Trabajando…';
+
+  try {
+    // 1. verify token
+    setStep(0, 'active');
+    const me = await gh(token, 'GET', '/user');
+    if(!me.ok) throw new Error(`No se pudo validar el token (HTTP ${me.status}). Revisa que sea correcto y tenga permisos "repo" y "workflow".`);
+    const username = me.data.login;
+    setStep(0, 'done');
+
+    // 2. create (or reuse) repo
+    setStep(1, 'active');
+    let repo;
+    const created = await gh(token, 'POST', '/user/repos', {
+      name: repoName,
+      private: isPrivate,
+      auto_init: true,
+      description: `App nativa generada desde ${url}`
+    });
+    if(created.ok){
+      repo = created.data;
+    } else if(created.status === 422){
+      const existing = await gh(token, 'GET', `/repos/${username}/${repoName}`);
+      if(!existing.ok) throw new Error(`El repositorio parece existir pero no pude leerlo (HTTP ${existing.status}).`);
+      repo = existing.data;
+    } else {
+      throw new Error(`No se pudo crear el repositorio (HTTP ${created.status}): ${created.data && created.data.message}`);
+    }
+    setStep(1, 'done');
+
+    // 3. get branch ref (repo may be brand new / still empty — that's OK)
+    setStep(2, 'active');
+    const branch = repo.default_branch || 'main';
+    let latestCommitSha = null;
+    let baseTreeSha = null;
+    const refRes = await gh(token, 'GET', `/repos/${username}/${repoName}/git/ref/heads/${branch}`);
+    if(refRes.ok){
+      latestCommitSha = refRes.data.object.sha;
+      const commitRes = await gh(token, 'GET', `/repos/${username}/${repoName}/git/commits/${latestCommitSha}`);
+      baseTreeSha = commitRes.data.tree.sha;
+    } else if(refRes.status !== 404){
+      throw new Error(`No se pudo leer la rama "${branch}" (HTTP ${refRes.status}).`);
+    }
+    // status 404 here just means the repo has no commits yet — we'll create the first one below
+    setStep(2, 'done');
+
+    // 4. prepare files
+    setStep(3, 'active');
+    const files = fileContents({ appId, appName, url, color, repoName });
+    setStep(3, 'done');
+
+    // 5. upload blobs
+    setStep(4, 'active');
+    const treeEntries = [];
+    for(const [path, content] of Object.entries(files)){
+      const blob = await gh(token, 'POST', `/repos/${username}/${repoName}/git/blobs`, {
+        content: b64(content),
+        encoding: 'base64'
+      });
+      if(!blob.ok) throw new Error(`No se pudo subir "${path}" (HTTP ${blob.status}).${blob.status===404 ? ' Esto casi siempre significa que el token no tiene permiso de escritura: revisa que tenga el scope "repo" completo (token clásico) o "Contents: Read and write" (token de grano fino).' : ''}`);
+      treeEntries.push({ path, mode: '100644', type: 'blob', sha: blob.data.sha });
+    }
+    if(iconBase64){
+      const iconBlob = await gh(token, 'POST', `/repos/${username}/${repoName}/git/blobs`, {
+        content: iconBase64,
+        encoding: 'base64'
+      });
+      if(!iconBlob.ok) throw new Error(`No se pudo subir el ícono (HTTP ${iconBlob.status}).${iconBlob.status===404 ? ' Revisa los permisos de escritura del token (scope "repo" o "Contents: Read and write").' : ''}`);
+      treeEntries.push({ path: 'resources/icon.png', mode: '100644', type: 'blob', sha: iconBlob.data.sha });
+    }
+    setStep(4, 'done');
+
+    // 6. create tree
+    setStep(5, 'active');
+    const treePayload = { tree: treeEntries };
+    if(baseTreeSha) treePayload.base_tree = baseTreeSha;
+    const treeRes = await gh(token, 'POST', `/repos/${username}/${repoName}/git/trees`, treePayload);
+    if(!treeRes.ok) throw new Error(`No se pudo crear el árbol de archivos (HTTP ${treeRes.status}).`);
+    setStep(5, 'done');
+
+    // 7. create commit
+    setStep(6, 'active');
+    const commitNewRes = await gh(token, 'POST', `/repos/${username}/${repoName}/git/commits`, {
+      message: `Configurar app nativa para ${url}`,
+      tree: treeRes.data.sha,
+      parents: latestCommitSha ? [latestCommitSha] : []
+    });
+    if(!commitNewRes.ok) throw new Error(`No se pudo crear el commit (HTTP ${commitNewRes.status}).`);
+    setStep(6, 'done');
+
+    // 8. point the branch at the new commit (create the ref if the repo was empty, otherwise update it)
+    setStep(7, 'active');
+    const updateRes = latestCommitSha
+      ? await gh(token, 'PATCH', `/repos/${username}/${repoName}/git/refs/heads/${branch}`, { sha: commitNewRes.data.sha })
+      : await gh(token, 'POST', `/repos/${username}/${repoName}/git/refs`, { ref: `refs/heads/${branch}`, sha: commitNewRes.data.sha });
+    if(!updateRes.ok) throw new Error(`No se pudo actualizar la rama (HTTP ${updateRes.status}).`);
+    setStep(7, 'done');
+
+    $('waitingNote').classList.add('show');
+
+    // 9. wait for the workflow run to appear
+    setStep(8, 'active');
+    const run = await waitForRun(token, username, repoName, commitNewRes.data.sha);
+    setStep(8, 'done');
+
+    // 10. poll until the run finishes
+    setStep(9, 'active');
+    const finishedRun = await waitForCompletion(token, username, repoName, run.id, (data, elapsedMs) => {
+      const mins = Math.floor(elapsedMs / 60000);
+      const secs = Math.floor((elapsedMs % 60000) / 1000);
+      const statusEs = { queued: 'en cola', in_progress: 'en progreso', completed: 'completada' }[data.status] || data.status;
+      setStepText(9, `Compilando APK (${statusEs}) · ${mins}m ${secs}s`);
+    });
+    if(finishedRun.conclusion !== 'success'){
+      throw new Error(`La compilación terminó con errores (${finishedRun.conclusion}). Revisa el registro aquí: ${finishedRun.html_url}`);
+    }
+    setStepText(9, 'APK compilado correctamente');
+    setStep(9, 'done');
+
+    // 11. download + unzip the artifact (best effort — GitHub's blob storage
+    // occasionally blocks direct browser reads, so we fall back to a manual link)
+    setStep(10, 'active');
+    const safeName = (appName || 'app').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'app';
+    const result = $('result');
+    try {
+      const artifactsRes = await gh(token, 'GET', `/repos/${username}/${repoName}/actions/runs/${run.id}/artifacts`);
+      if(!artifactsRes.ok) throw new Error(`No se pudo listar los artefactos (HTTP ${artifactsRes.status}).`);
+      const artifact = (artifactsRes.data.artifacts || []).find(a => a.name === 'app-debug-apk');
+      if(!artifact) throw new Error('No se encontró el artefacto del APK entre los resultados de la compilación.');
+      const zipBuffer = await fetchArtifactZip(token, artifact.archive_download_url);
+      const apkBlob = await extractApk(zipBuffer);
+      const apkUrl = URL.createObjectURL(apkBlob);
+      setStep(10, 'done');
+
+      result.innerHTML = `
+        <a class="download-btn" id="apkDownload" href="${apkUrl}" download="${safeName}.apk">⬇ Descargar APK</a>
+        <a href="https://github.com/${username}/${repoName}" target="_blank" rel="noopener">→ Ver repositorio</a>
+        <a href="https://github.com/${username}/${repoName}/actions" target="_blank" rel="noopener">→ Ver historial de compilaciones</a>
+      `;
+    } catch(downloadErr){
+      setStep(10, 'error');
+      result.innerHTML = `
+        <p style="color:var(--text-dim);font-size:13px;margin:0 0 12px;">El APK se compiló con éxito, pero tu navegador no pudo traerlo automáticamente (GitHub a veces bloquea la descarga directa por CORS). Descárgalo desde aquí en un clic:</p>
+        <a href="https://github.com/${username}/${repoName}/actions/runs/${run.id}" target="_blank" rel="noopener">→ Abrir esta compilación y descargar el APK</a>
+        <a href="https://github.com/${username}/${repoName}" target="_blank" rel="noopener">→ Ver repositorio</a>
+      `;
+    }
+    result.classList.add('show');
+    $('waitingNote').classList.remove('show');
+
+    $('go').textContent = 'Generar otra app';
+    $('go').disabled = false;
+
+  } catch(err){
+    $('waitingNote').classList.remove('show');
+    const activeIdx = stepEls.findIndex(s => s.classList.contains('active'));
+    if(activeIdx >= 0) setStep(activeIdx, 'error');
+    showError(err.message || String(err));
+    $('go').textContent = 'Reintentar';
+    $('go').disabled = false;
+  }
+});
+</script>
+</body>
+</html>
