@@ -136,6 +136,40 @@
   input[type=file]{display:none;}
   .file-name{font-size:12px;color:var(--text-faint);margin-top:6px;}
 
+  .token-locked{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--bg-input);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 12px;
+  }
+  .token-locked-info{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .token-locked-status{
+    font-size:13px;color:var(--green);font-weight:600;
+    display:flex;align-items:center;gap:6px;
+  }
+  .token-locked-masked{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;color:var(--text-faint);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .edit-btn{
+    flex-shrink:0;
+    background:none;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    border-radius:7px;
+    padding:7px 12px;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .edit-btn:hover{border-color:var(--amber);color:var(--amber);}
+
   .hint{font-size:12px;color:var(--text-faint);margin-top:6px;}
   .hint a{color:var(--amber);text-decoration:none;border-bottom:1px dotted var(--amber-dim);}
 
@@ -278,8 +312,17 @@
     <h2>Tu cuenta de GitHub</h2>
     <div class="field">
       <label for="token">Token de acceso personal</label>
-      <input type="password" id="token" placeholder="ghp_••••••••••••••••••••">
-      <p class="hint">Necesita permiso <code>repo</code> y <code>workflow</code>. Se usa solo en tu navegador, nunca se guarda ni se envía a otro sitio que no sea api.github.com. <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">Crear uno nuevo ↗</a></p>
+      <div id="tokenInputWrap">
+        <input type="password" id="token" placeholder="ghp_••••••••••••••••••••">
+        <p class="hint">Necesita permiso <code>repo</code> y <code>workflow</code>. Se guarda solo mientras dure esta sesión (en la memoria de la página) — no se sube a ningún servidor propio ni se envía a otro sitio que no sea api.github.com, y se olvida si recargas la página. <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">Crear uno nuevo ↗</a></p>
+      </div>
+      <div class="token-locked" id="tokenLockedWrap" style="display:none;">
+        <div class="token-locked-info">
+          <span class="token-locked-status">✓ Token guardado para esta sesión</span>
+          <span class="token-locked-masked" id="tokenMasked"></span>
+        </div>
+        <button type="button" class="edit-btn" id="editTokenBtn">Editar</button>
+      </div>
     </div>
     <div class="row2">
       <div class="field">
@@ -364,6 +407,30 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 $('color').addEventListener('input', e => $('colorHex').textContent = e.target.value);
+
+function maskToken(t){
+  t = t.trim();
+  if(t.length <= 8) return '•'.repeat(Math.max(t.length, 4));
+  return t.slice(0, 4) + '•'.repeat(8) + t.slice(-4);
+}
+
+function lockToken(){
+  const value = $('token').value.trim();
+  if(!value) return;
+  $('tokenInputWrap').style.display = 'none';
+  $('tokenLockedWrap').style.display = 'flex';
+  $('tokenMasked').textContent = maskToken(value);
+}
+
+function unlockToken(){
+  $('tokenLockedWrap').style.display = 'none';
+  $('tokenInputWrap').style.display = 'block';
+  $('token').focus();
+}
+
+$('token').addEventListener('blur', lockToken);
+$('token').addEventListener('keydown', (e) => { if(e.key === 'Enter') lockToken(); });
+$('editTokenBtn').addEventListener('click', unlockToken);
 
 let iconBase64 = null; // raw base64 (no data: prefix), set when user picks a photo
 
@@ -497,6 +564,10 @@ async function gh(token, method, path, body){
   return { ok: res.ok, status: res.status, data };
 }
 
+function ghMsg(res){
+  return (res && res.data && res.data.message) ? ` — GitHub dice: "${res.data.message}"` : '';
+}
+
 function b64(str){
   return btoa(unescape(encodeURIComponent(str)));
 }
@@ -620,6 +691,7 @@ Generado con un panel libre y de código abierto, sin cuotas ni marca de agua.
 
 $('go').addEventListener('click', async () => {
   const token = $('token').value.trim();
+  lockToken();
   const repoName = $('repo').value.trim();
   const isPrivate = $('private').checked;
   const url = $('url').value.trim();
@@ -648,7 +720,7 @@ $('go').addEventListener('click', async () => {
     // 1. verify token
     setStep(0, 'active');
     const me = await gh(token, 'GET', '/user');
-    if(!me.ok) throw new Error(`No se pudo validar el token (HTTP ${me.status}). Revisa que sea correcto y tenga permisos "repo" y "workflow".`);
+    if(!me.ok) throw new Error(`No se pudo validar el token (HTTP ${me.status})${ghMsg(me)}. Revisa que sea correcto y tenga permisos "repo" y "workflow".`);
     const username = me.data.login;
     setStep(0, 'done');
 
@@ -665,10 +737,10 @@ $('go').addEventListener('click', async () => {
       repo = created.data;
     } else if(created.status === 422){
       const existing = await gh(token, 'GET', `/repos/${username}/${repoName}`);
-      if(!existing.ok) throw new Error(`El repositorio parece existir pero no pude leerlo (HTTP ${existing.status}).`);
+      if(!existing.ok) throw new Error(`El repositorio parece existir pero no pude leerlo (HTTP ${existing.status})${ghMsg(existing)}.`);
       repo = existing.data;
     } else {
-      throw new Error(`No se pudo crear el repositorio (HTTP ${created.status}): ${created.data && created.data.message}`);
+      throw new Error(`No se pudo crear el repositorio (HTTP ${created.status})${ghMsg(created)}.`);
     }
     setStep(1, 'done');
 
@@ -683,7 +755,7 @@ $('go').addEventListener('click', async () => {
       const commitRes = await gh(token, 'GET', `/repos/${username}/${repoName}/git/commits/${latestCommitSha}`);
       baseTreeSha = commitRes.data.tree.sha;
     } else if(refRes.status !== 404){
-      throw new Error(`No se pudo leer la rama "${branch}" (HTTP ${refRes.status}).`);
+      throw new Error(`No se pudo leer la rama "${branch}" (HTTP ${refRes.status})${ghMsg(refRes)}.`);
     }
     // status 404 here just means the repo has no commits yet — we'll create the first one below
     setStep(2, 'done');
@@ -701,7 +773,7 @@ $('go').addEventListener('click', async () => {
         content: b64(content),
         encoding: 'base64'
       });
-      if(!blob.ok) throw new Error(`No se pudo subir "${path}" (HTTP ${blob.status}).${blob.status===404 ? ' Esto casi siempre significa que el token no tiene permiso de escritura: revisa que tenga el scope "repo" completo (token clásico) o "Contents: Read and write" (token de grano fino).' : ''}`);
+      if(!blob.ok) throw new Error(`No se pudo subir "${path}" (HTTP ${blob.status})${ghMsg(blob)}.${blob.status===404 ? ' Esto casi siempre significa que el token no tiene permiso de escritura: revisa que tenga el scope "repo" completo (token clásico) o "Contents: Read and write" (token de grano fino).' : ''}`);
       treeEntries.push({ path, mode: '100644', type: 'blob', sha: blob.data.sha });
     }
     if(iconBase64){
@@ -709,7 +781,7 @@ $('go').addEventListener('click', async () => {
         content: iconBase64,
         encoding: 'base64'
       });
-      if(!iconBlob.ok) throw new Error(`No se pudo subir el ícono (HTTP ${iconBlob.status}).${iconBlob.status===404 ? ' Revisa los permisos de escritura del token (scope "repo" o "Contents: Read and write").' : ''}`);
+      if(!iconBlob.ok) throw new Error(`No se pudo subir el ícono (HTTP ${iconBlob.status})${ghMsg(iconBlob)}.${iconBlob.status===404 ? ' Revisa los permisos de escritura del token (scope "repo" o "Contents: Read and write").' : ''}`);
       treeEntries.push({ path: 'resources/icon.png', mode: '100644', type: 'blob', sha: iconBlob.data.sha });
     }
     setStep(4, 'done');
@@ -719,7 +791,7 @@ $('go').addEventListener('click', async () => {
     const treePayload = { tree: treeEntries };
     if(baseTreeSha) treePayload.base_tree = baseTreeSha;
     const treeRes = await gh(token, 'POST', `/repos/${username}/${repoName}/git/trees`, treePayload);
-    if(!treeRes.ok) throw new Error(`No se pudo crear el árbol de archivos (HTTP ${treeRes.status}).`);
+    if(!treeRes.ok) throw new Error(`No se pudo crear el árbol de archivos (HTTP ${treeRes.status})${ghMsg(treeRes)}.`);
     setStep(5, 'done');
 
     // 7. create commit
@@ -729,7 +801,7 @@ $('go').addEventListener('click', async () => {
       tree: treeRes.data.sha,
       parents: latestCommitSha ? [latestCommitSha] : []
     });
-    if(!commitNewRes.ok) throw new Error(`No se pudo crear el commit (HTTP ${commitNewRes.status}).`);
+    if(!commitNewRes.ok) throw new Error(`No se pudo crear el commit (HTTP ${commitNewRes.status})${ghMsg(commitNewRes)}.`);
     setStep(6, 'done');
 
     // 8. point the branch at the new commit (create the ref if the repo was empty, otherwise update it)
@@ -737,7 +809,7 @@ $('go').addEventListener('click', async () => {
     const updateRes = latestCommitSha
       ? await gh(token, 'PATCH', `/repos/${username}/${repoName}/git/refs/heads/${branch}`, { sha: commitNewRes.data.sha })
       : await gh(token, 'POST', `/repos/${username}/${repoName}/git/refs`, { ref: `refs/heads/${branch}`, sha: commitNewRes.data.sha });
-    if(!updateRes.ok) throw new Error(`No se pudo actualizar la rama (HTTP ${updateRes.status}).`);
+    if(!updateRes.ok) throw new Error(`No se pudo actualizar la rama (HTTP ${updateRes.status})${ghMsg(updateRes)}.`);
     setStep(7, 'done');
 
     $('waitingNote').classList.add('show');
@@ -768,7 +840,7 @@ $('go').addEventListener('click', async () => {
     const result = $('result');
     try {
       const artifactsRes = await gh(token, 'GET', `/repos/${username}/${repoName}/actions/runs/${run.id}/artifacts`);
-      if(!artifactsRes.ok) throw new Error(`No se pudo listar los artefactos (HTTP ${artifactsRes.status}).`);
+      if(!artifactsRes.ok) throw new Error(`No se pudo listar los artefactos (HTTP ${artifactsRes.status})${ghMsg(artifactsRes)}.`);
       const artifact = (artifactsRes.data.artifacts || []).find(a => a.name === 'app-debug-apk');
       if(!artifact) throw new Error('No se encontró el artefacto del APK entre los resultados de la compilación.');
       const zipBuffer = await fetchArtifactZip(token, artifact.archive_download_url);
